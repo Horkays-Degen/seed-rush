@@ -103,14 +103,15 @@ const AREAS=[
  {name:'Forest Floor',g:'#4d6a32',d:'#3f5828',spk:'#6c5a2e',pat:'grass',rocks:6,pools:1,rock:'#6f675c',tip:'Rocks everywhere. A mushroom 🍄 makes you big: carry 3 seeds and bowl enemies over.'},
  {name:'Picnic Blanket',g:'#f3ece0',d:'#cf4a40',pat:'check',sz:52,rocks:3,pools:1,rock:'#b98545',tip:'Golden seeds are worth 3. Raiders want them too.'},
  {name:'Desert Dunes',g:'#d9a45a',d:'#c38c45',spk:'#ecc382',pat:'dune',rocks:5,pools:0,rock:'#8e6f4d',tip:'Long runs home. Candy 🍬 makes you fast.'},
- {name:'Swamp',g:'#44654c',d:'#36523e',spk:'#5d7f55',pat:'grass',rocks:3,pools:6,rock:'#5b6159',tip:'Puddles slow you down. A stag beetle hunts here. It takes 3 fire hits.'},
+ {name:'Swamp',g:'#44654c',d:'#36523e',spk:'#5d7f55',pat:'grass',rocks:3,pools:6,rock:'#5b6159',tip:'Puddles slow you down. A stag beetle hunts here. It takes 3 fire hits. New here: grab 🎖️ to call in an Ant Squad that gathers seeds and fights for you.'},
  {name:'Night Garden',g:'#223441',d:'#1a2934',spk:'#2f4a5a',pat:'grass',rocks:5,pools:2,rock:'#46525a',dark:true,tip:'Lights out. You can only see around your ant. Follow the anthill lantern home.'},
  {name:'Rooftop Gravel',g:'#8b8984',d:'#76746e',spk:'#a6a49e',pat:'speck',rocks:8,pools:2,rock:'#5e5c58',tip:'Tight lanes and a crowd of soldiers.'},
  {name:'Volcano Ridge',g:'#4a2a22',d:'#3a1f19',spk:'#6a3a2c',pat:'speck',rocks:6,pools:5,rock:'#2b1b17',lava:true,tip:'Lava burns unless you are on fire. Two beetles. Finish the colony.'}
 ];
 const TIERS=[[0,'Dirt Mound'],[8,'Ant Hill'],[22,'Hill Fort'],[45,'Ant Tower'],[80,'Seed Castle'],[125,'Colony Citadel']];
 function tierOf(n){let t=0;for(let i=0;i<TIERS.length;i++)if(n>=TIERS[i][0])t=i;return t}
-const PU={big:{e:'🍄',name:'Big',dur:8},fast:{e:'🍬',name:'Speed',dur:8},fire:{e:'🌶️',name:'Fire',dur:7},life:{e:'💧',name:'Dew'}};
+const PU={big:{e:'🍄',name:'Big',dur:8},fast:{e:'🍬',name:'Speed',dur:8},fire:{e:'🌶️',name:'Fire',dur:7},life:{e:'💧',name:'Dew'},squad:{e:'🎖️',name:'Squad',dur:12}};
+const SQUAD_LEVEL=7;
 
 function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 const rnd=(a,b)=>a+Math.random()*(b-a);
@@ -119,7 +120,7 @@ function angDiff(a,b){let d=a-b;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+
 
 /* ---------- state ---------- */
 let state='menu',lvl=1,A,cfg,timeLeft=0,score=0,total=0,delivered=0,startScore=0,startTotal=0;
-let P,enemies=[],seeds=[],seedQ=[],pups=[],rocks=[],pools=[],parts=[],texts=[],bg,home,nest,pupT=0,shake=0,homePop=0,kills=0,stolen=0,clock=0;
+let P,enemies=[],seeds=[],seedQ=[],pups=[],rocks=[],pools=[],parts=[],texts=[],bg,home,nest,pupT=0,shake=0,homePop=0,kills=0,stolen=0,clock=0,allies=[];
 const keys=new Set();
 const joy={on:false,ox:0,oy:0,x:0,y:0,id:null};
 
@@ -165,6 +166,7 @@ const SND={
   fast(){tone(500,.25,{type:'sine',to:2200,vol:.18});tone(700,.2,{type:'sine',to:2600,vol:.08,at:.08})},
   fire(){noise(.5,{f:400,to:3000,vol:.35,q:.7});tone(120,.45,{type:'sawtooth',to:420,vol:.1})},
   life(){[660,990,1320].forEach((f,i)=>tone(f,.25,{type:'sine',vol:.16,at:i*.07}))},
+  squad(){[440,554,659,880].forEach((f,i)=>tone(f,.16,{type:'square',vol:.15,at:i*.06}));noise(.2,{f:2000,vol:.1,at:.2})},
   burn(){noise(.35,{f:2500,to:300,vol:.4,ft:'lowpass'});tone(320,.3,{type:'sawtooth',to:70,vol:.12})},
   bump(){tone(150,.14,{type:'sine',to:55,vol:.35});noise(.07,{f:500,vol:.15})},
   thief(){tone(700,.22,{to:220,vol:.12})},
@@ -217,12 +219,12 @@ function setupLevel(n){
   for(let i=0;i<A.pools;i++)for(let t=0;t<80;t++){const r=28+R()*30,x=90+R()*(W-180),y=70+R()*(H-140);if(ok(x,y,r)){pools.push({x,y,r,lava:!!A.lava,ph:R()*6});break}}
   cfg={target:5+n*2,time:60+n*8,raiders:Math.ceil(n/2),soldiers:Math.floor(n/3),beetles:n>=7?(n===10?2:1):0,spd:1+(n-1)*0.045,field:Math.min(8,3+n)};
   buildBg();
-  P={x:home.x+70,y:home.y,a:0,r:11,load:[],lives:3,inv:1.5,stun:0,big:0,fast:0,fire:0,legT:0};
+  P={x:home.x+70,y:home.y,a:0,r:11,load:[],lives:3,inv:1.5,stun:0,big:0,fast:0,fire:0,squad:0,legT:0};
   enemies=[];
   for(let i=0;i<cfg.raiders;i++)enemies.push(makeEnemy('raider'));
   for(let i=0;i<cfg.soldiers;i++)enemies.push(makeEnemy('soldier'));
   for(let i=0;i<cfg.beetles;i++)enemies.push(makeEnemy('beetle'));
-  seeds=[];seedQ=[];pups=[];parts=[];texts=[];
+  seeds=[];seedQ=[];pups=[];parts=[];texts=[];allies=[];
   for(let i=0;i<cfg.field;i++)spawnSeed();
   timeLeft=cfg.time;delivered=0;pupT=4;kills=0;stolen=0;shake=0;homePop=0;
   startScore=score;startTotal=total;
@@ -231,6 +233,15 @@ function makeEnemy(type){
   const base={raider:{r:9,spd:95,hp:1},soldier:{r:12,spd:100,hp:1},beetle:{r:20,spd:68,hp:3}}[type];
   return {type,x:nest.x+rnd(-30,30),y:nest.y+rnd(-30,30),a:Math.PI,r:base.r,spd:base.spd,hp:base.hp,
     load:0,stun:0,vx:0,vy:0,dead:false,resp:0,wx:0,wy:0,wt:0,legT:Math.random()*6,hitCd:0};
+}
+function makeAlly(i){
+  const a=rnd(0,Math.PI*2);
+  return {x:P.x+Math.cos(a)*30,y:P.y+Math.sin(a)*30,a:0,r:10,spd:150,load:0,legT:Math.random()*6,
+    tgt:null,hitCd:0,life:PU.squad.dur,orbit:i*2.4};
+}
+function spawnAllies(){
+  for(const al of allies)al.life=PU.squad.dur;
+  for(let i=allies.length;i<2;i++){const al=makeAlly(i);burst(al.x,al.y,'#8fd3ff',10,120);allies.push(al)}
 }
 function freeSpot(minHome){
   for(let t=0;t<100;t++){
@@ -303,7 +314,7 @@ function update(dt){
   const pt=Math.ceil(timeLeft);timeLeft-=dt;if(Math.ceil(timeLeft)<pt&&pt<=11&&timeLeft>0)sfx('tick');
   if(P.fire>0&&Math.random()<dt*14)sfx('crackle');
   if(timeLeft<=0){timeLeft=0;fail('time');return}
-  for(const k of['inv','stun','big','fast','fire'])P[k]=Math.max(0,P[k]-dt);
+  for(const k of['inv','stun','big','fast','fire','squad'])P[k]=Math.max(0,P[k]-dt);
   P.r=P.big>0?17:11;
 
   let ix=0,iy=0;
@@ -328,10 +339,12 @@ function update(dt){
   pupT-=dt;
   if(pupT<=0){pupT=rnd(6,10);if(pups.length<2){
     const bag=['big','big','fast','fast','fire','fire'];if(P.lives<5&&lvl>=2)bag.push('life');
+    if(lvl>=SQUAD_LEVEL)bag.push('squad','squad');
     const p=freeSpot(100);pups.push({x:p.x,y:p.y,t:bag[Math.floor(Math.random()*bag.length)],l:12})}}
   for(const u of pups.slice()){u.l-=dt;if(u.l<=0){pups.splice(pups.indexOf(u),1);continue}
     if(Math.hypot(P.x-u.x,P.y-u.y)<P.r+14){pups.splice(pups.indexOf(u),1);
       if(u.t==='life'){P.lives=Math.min(5,P.lives+1);say(u.x,u.y-20,'+1 life','#8fd3ff')}
+      else if(u.t==='squad'){P.squad=PU.squad.dur;spawnAllies();say(u.x,u.y-20,'Ant Squad!','#8fd3ff')}
       else{P[u.t]=PU[u.t].dur;say(u.x,u.y-20,PU[u.t].name+'!',u.t==='fire'?'#ff8a2b':'#fff2d6')}
       burst(u.x,u.y,'#fff2d6',14,150);sfx(u.t)}}
 
@@ -345,6 +358,7 @@ function update(dt){
   }
 
   for(const e of enemies)updEnemy(e,dt);
+  updAllies(dt);
 
   for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.92;p.vy*=.92;p.l-=dt}
   parts=parts.filter(p=>p.l>0);
@@ -392,6 +406,36 @@ function contact(e){
     if(P.load.length&&P.inv<=0&&!e.load){e.load=P.load.pop();P.inv=.9;sfx('thief');say(P.x,P.y-26,'Thief!','#ff8a6b');return}
     const a=Math.atan2(e.y-P.y,e.x-P.x);e.x=P.x+Math.cos(a)*(e.r+P.r);e.y=P.y+Math.sin(a)*(e.r+P.r);
   }else hurt();
+}
+function allyKnock(al,e){const a=Math.atan2(e.y-al.y,e.x-al.x);e.vx=Math.cos(a)*320;e.vy=Math.sin(a)*320}
+function updAllies(dt){
+  for(let i=allies.length-1;i>=0;i--){
+    const al=allies[i];al.life-=dt;
+    if(al.life<=0){burst(al.x,al.y,'#8fd3ff',14,140);allies.splice(i,1);continue}
+    al.hitCd=Math.max(0,al.hitCd-dt);
+    let tx,ty,spd=al.spd;
+    if(al.load){tx=home.x;ty=home.y;
+      if(Math.hypot(al.x-home.x,al.y-home.y)<homeR()+al.r){
+        delivered+=al.load;total+=al.load;score+=al.load*10;al.load=0;homePop=1;
+        say(home.x,home.y-homeR()-10,'+'+1+' ally seed','#8fd3ff');burst(home.x,home.y-10,'#8fd3ff',10,120);sfx('pick');
+        if(delivered>=cfg.target){clearLevel();return}
+      }
+    }else{
+      let bestE=null,bd=1e9;
+      for(const e of enemies){if(e.dead)continue;const d=Math.hypot(e.x-al.x,e.y-al.y);if(d<170&&d<bd){bd=d;bestE=e}}
+      let bestS=null,sd=1e9;
+      for(const s of seeds){const d=Math.hypot(s.x-al.x,s.y-al.y);if(d<sd){sd=d;bestS=s}}
+      if(bestE){tx=bestE.x;ty=bestE.y;spd*=1.05;
+        if(bd<al.r+bestE.r+6&&al.hitCd<=0){al.hitCd=.6;allyKnock(al,bestE);bestE.stun=1.1;sfx('bump');burst(bestE.x,bestE.y,'#8fd3ff',10,140);
+          if(bestE.load){dropSeed(bestE.x,bestE.y,bestE.load);bestE.load=0}}
+      }else if(bestS){tx=bestS.x;ty=bestS.y;
+        if(sd<al.r+8){al.load=bestS.v;takeSeed(bestS);burst(bestS.x,bestS.y,'#ffd84a',6,80)}
+      }else{const orb=al.orbit+clock*1.2;tx=P.x+Math.cos(orb)*40;ty=P.y+Math.sin(orb)*40}
+    }
+    al.a+=Math.max(-6*dt,Math.min(6*dt,angDiff(Math.atan2(ty-al.y,tx-al.x),al.a)));
+    al.x+=Math.cos(al.a)*spd*dt;al.y+=Math.sin(al.a)*spd*dt;al.legT+=dt*spd*.14;
+    collide(al);
+  }
 }
 const homeR=()=>30+Math.min(total,170)*.22;
 
@@ -492,6 +536,11 @@ function draw(){
     if(e.load)drawLoad(e.x,e.y,e.a,.85,[e.load]);
     if(e.stun>0){ctx.fillStyle='#fff2d6';for(let i=0;i<3;i++){const a=clock*6+i*2.1;ell(e.x+Math.cos(a)*12,e.y-e.r-6+Math.sin(a)*4,2,2);ctx.fill()}}
   }
+  for(const al of allies){
+    if(al.life<2.5&&Math.floor(al.life*6)%2)continue;
+    drawAnt(al.x,al.y,al.a,.92,'#3a6ea8',al.legT,{mand:true,band:'#bfe6ff'});
+    if(al.load)drawLoad(al.x,al.y,al.a,.85,[al.load]);
+  }
   if(P){
     const s=P.big>0?1.55:1;
     if(!(P.inv>0&&Math.floor(clock*14)%2)){
@@ -525,7 +574,7 @@ function hud(){
   const t=tierOf(total),nx=TIERS[t+1];
   $('hHill').textContent=TIERS[t][1]+(nx?' ('+(nx[0]-total)+' to grow)':'');
   $('hScore').textContent=score;
-  let h='';for(const kk of['big','fast','fire'])if(P[kk]>0)h+=`<span class="chip">${PU[kk].e} ${Math.ceil(P[kk])}s</span>`;
+  let h='';for(const kk of['big','fast','fire','squad'])if(P[kk]>0)h+=`<span class="chip">${PU[kk].e} ${Math.ceil(P[kk])}s</span>`;
   if(P.load.length)h+=`<span class="chip">Carrying ${P.load.reduce((a,b)=>a+b,0)}</span>`;
   $('hPow').innerHTML=h;
 }
@@ -607,6 +656,7 @@ function menu(){
    <li>🍬 Speed: run much faster</li>
    <li>🌶️ Fire: burn any enemy you touch</li>
    <li>💧 Dew: one extra life</li>
+   <li>🎖️ Ant Squad (level 7+): two allies gather seeds and fight for you</li>
    <li>🔊 Press M to mute sound</li>
   </ul>
   <div class="btns"><button data-a="new">Start level 1</button>${s&&s.level>1?`<button class="alt" data-a="cont">Continue level ${s.level}</button>`:''}<button class="alt" data-a="board">🏆 Leaderboard</button></div>`,
