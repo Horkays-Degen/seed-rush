@@ -56,6 +56,7 @@ button.alt{background:#c9ab86}
 .board .sc{font-family:"Lilita One",Nunito,sans-serif;font-size:19px}
 .board .empty{display:block;text-align:center;color:var(--muted)}
 #mute{margin-left:auto;font-size:16px;padding:4px 10px;border-radius:10px;box-shadow:0 3px 0 #150c06;background:#c9ab86}
+#badge{position:fixed;bottom:8px;right:10px;z-index:999;background:rgba(30,20,10,0.6);color:#ffe9b3;padding:5px 10px;border-radius:14px;font-size:12px;font-weight:800;letter-spacing:.3px;pointer-events:none;border:1px solid rgba(255,220,150,0.35);backdrop-filter:blur(2px);font-family:Nunito,system-ui,sans-serif}
 button:active{transform:translateY(3px);box-shadow:0 2px 0 #150c06}
 button:focus-visible{outline:3px solid var(--cream);outline-offset:3px}
 @media (max-width:600px){.card h1{font-size:44px}#hud{font-size:12px;gap:4px 12px}.bar{width:70px}}
@@ -79,6 +80,7 @@ button:focus-visible{outline:3px solid var(--cream);outline-offset:3px}
     <div id="ov"></div>
   </div>
 </div>
+<div id="badge">Built with AntSeed 🐜</div>
 <script>
 const W=960,H=640;
 const $=id=>document.getElementById(id);
